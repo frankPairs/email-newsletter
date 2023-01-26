@@ -1,0 +1,19 @@
+[package]
+name = "email-newsletter"
+version = "0.1.0"
+edition = "2021"
+authors = ["Frank Parejo <francisco.parejo.lopez@gmail.com>"]
+
+[lib]
+path = "src/lib.rs"
+
+# Double square brackets is the way you represent an array in TOML's
+# In Rust, you can have multiple binaries
+[[bin]]
+path = "src/main.rs"
+name = "email_newsletter"
+
+[dependencies]
+actix-web = { version = "4"}
+tokio = {version = "1", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.11"}
