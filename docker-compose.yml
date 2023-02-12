@@ -1,0 +1,19 @@
+version: '3.1'
+
+services:
+  db:
+    container_name: email_newsletter_db
+    image: 'postgres:14'
+    ports:
+      - 5532:5432
+    restart: always
+    environment:
+      POSTGRES_USER: frank # The PostgreSQL user (useful to connect to the database)
+      POSTGRES_PASSWORD: postgres # The PostgreSQL password (useful to connect to the database)
+      POSTGRES_DB: postgres # The PostgreSQL default database (automatically created at first launch)
+    volumes: 
+      - db:/var/lib/postgresql/data
+
+volumes:
+  db:
+    driver: local
