@@ -1,5 +1,5 @@
 use secrecy::ExposeSecret;
-use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use std::net::TcpListener;
 
 use email_newsletter::config::get_configuration;
@@ -12,8 +12,9 @@ async fn main() -> std::io::Result<()> {
     init_subscriber(subscriber);
 
     let config = get_configuration().expect("Missing configuration file.");
-    let db_pool = PgPool::connect(&config.get_db_url().expose_secret())
-        .await
+    let db_pool = PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy(&config.get_db_url().expose_secret())
         .expect("Failed to connect to the Database.");
     let listener = TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
 
