@@ -34,7 +34,7 @@ services:
 databases:
   # PG = Postgres
   - engine: PG
-    name: newsletter-db
+    name: newsletter
     num_nodes: 1
     size: db-s-dev-database
     version: "12"
