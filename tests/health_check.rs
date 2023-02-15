@@ -1,4 +1,3 @@
-use secrecy::ExposeSecret;
 use sqlx::{migrate, query, Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
 use std::net::TcpListener;
@@ -33,10 +32,9 @@ async fn spawn_app() -> TestApp {
 }
 
 async fn configure_db(config: &DatabaseSettings) -> PgPool {
-    let mut db_connection =
-        PgConnection::connect(&config.get_url_without_db_name().expose_secret())
-            .await
-            .expect("Failed to connect with the database");
+    let mut db_connection = PgConnection::connect_with(&config.get_db_options_without_name())
+        .await
+        .expect("Failed to connect with the database");
 
     // Create new database
     db_connection
@@ -44,7 +42,7 @@ async fn configure_db(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database");
 
-    let db_pool = PgPool::connect(&config.get_url().expose_secret())
+    let db_pool = PgPool::connect_with(config.get_db_options())
         .await
         .expect("Failed to connect with the database");
 

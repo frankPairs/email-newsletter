@@ -15,10 +15,26 @@ services:
     instance_size_slug: basic-xxs
     routes:
       - path: /
+    env:
+      - key: APP_DATABASE__USERNAME
+        scope: RUN_TIME
+        value: ${newsletter.USERNAME}
+      - key: APP_DATABASE__PASSWORD
+        scope: RUN_TIME
+        value: ${newsletter.PASSWORD}
+      - key: APP_DATABASE__HOST
+        scope: RUN_TIME
+        value: ${newsletter.HOSTNAME}
+      - key: APP_DATABASE__PORT
+        scope: RUN_TIME
+        value: ${newsletter.PORT}
+      - key: APP_DATABASE__DB_NAME
+        scope: RUN_TIME
+        value: ${newsletter.DATABASE}
 databases:
   # PG = Postgres
   - engine: PG
-  name: newsletter_db
-  num_nodes: 1
-  size: db-s-dev-database
-  version: "14"
+    name: newsletter-db
+    num_nodes: 1
+    size: db-s-dev-database
+    version: "12"

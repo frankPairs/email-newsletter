@@ -1,5 +1,10 @@
 use config::{Config, ConfigError, File};
 use secrecy::{ExposeSecret, Secret};
+use serde_aux::field_attributes::deserialize_number_from_string;
+use sqlx::{
+    postgres::{PgConnectOptions, PgSslMode},
+    ConnectOptions,
+};
 
 pub enum Environment {
     Development,
@@ -14,6 +19,7 @@ pub struct Settings {
 
 #[derive(serde::Deserialize)]
 pub struct ApplicationSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
 }
@@ -23,9 +29,11 @@ pub struct DatabaseSettings {
     pub username: String,
     // secrecy protects secret information and prevents them to be exposed (eg: via logs)
     pub password: Secret<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
     pub db_name: String,
+    pub require_ssl: bool,
 }
 
 impl Settings {
@@ -37,12 +45,12 @@ impl Settings {
         )
     }
 
-    pub fn get_db_url(&self) -> Secret<String> {
-        self.database.get_url()
+    pub fn get_db_options(&self) -> PgConnectOptions {
+        self.database.get_db_options()
     }
 
-    pub fn get_db_url_without_name(&self) -> Secret<String> {
-        self.database.get_url_without_db_name()
+    pub fn get_db_options_without_name(&self) -> PgConnectOptions {
+        self.database.get_db_options_without_name()
     }
 
     pub fn set_db_name(&mut self, db_name: String) {
@@ -51,25 +59,27 @@ impl Settings {
 }
 
 impl DatabaseSettings {
-    pub fn get_url(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-            self.db_name
-        ))
+    pub fn get_db_options(&self) -> PgConnectOptions {
+        let mut db_options = self.get_db_options_without_name().database(&self.db_name);
+
+        db_options.log_statements(tracing::log::LevelFilter::Trace);
+
+        db_options
     }
 
-    pub fn get_url_without_db_name(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port
-        ))
+    pub fn get_db_options_without_name(&self) -> PgConnectOptions {
+        let ssl_mode = if self.require_ssl {
+            PgSslMode::Require
+        } else {
+            PgSslMode::Prefer
+        };
+
+        PgConnectOptions::new()
+            .host(&self.host)
+            .password(&self.password.expose_secret())
+            .username(&self.username)
+            .port(self.port)
+            .ssl_mode(ssl_mode)
     }
 
     pub fn set_db_name(&mut self, new_db_name: String) {
@@ -126,6 +136,9 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
     let settings = Config::builder()
         .add_source(File::from(config_base_filepath).required(true))
         .add_source(File::from(config_env_filepath).required(true))
+        // Merge settings from environment variables with a prefix of APP and "__" separator
+        // E.g APP_APPLICATION__PORT would set Settings.application.port
+        .add_source(config::Environment::with_prefix("app").separator("__"))
         .build()?;
 
     // Try to convert the value from the configuration file into a Settings type

@@ -1,4 +1,3 @@
-use secrecy::ExposeSecret;
 use sqlx::postgres::PgPoolOptions;
 use std::net::TcpListener;
 
@@ -14,8 +13,7 @@ async fn main() -> std::io::Result<()> {
     let config = get_configuration().expect("Missing configuration file.");
     let db_pool = PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy(&config.get_db_url().expose_secret())
-        .expect("Failed to connect to the Database.");
+        .connect_lazy_with(config.get_db_options());
     let listener = TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
 
     run(listener, db_pool)?.await
