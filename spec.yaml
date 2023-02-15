@@ -15,7 +15,7 @@ services:
     instance_size_slug: basic-xxs
     routes:
       - path: /
-    env:
+    envs:
       - key: APP_DATABASE__USERNAME
         scope: RUN_TIME
         value: ${newsletter.USERNAME}
