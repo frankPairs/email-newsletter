@@ -6,6 +6,7 @@ use sqlx::{
     ConnectOptions,
 };
 
+#[derive(Debug)]
 pub enum Environment {
     Development,
     Production,
@@ -112,7 +113,7 @@ impl TryFrom<String> for Environment {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
             "development" => Ok(Self::Development),
-            "production" => Ok(Self::Development),
+            "production" => Ok(Self::Production),
             unknown_env => Err(format!(
                 "{} is not supported environment. Use either 'development' or 'production'.",
                 unknown_env
@@ -140,6 +141,8 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
         // E.g APP_APPLICATION__PORT would set Settings.application.port
         .add_source(config::Environment::with_prefix("app").separator("__"))
         .build()?;
+
+    tracing::info!("Application environment = {:?}", enviroment);
 
     // Try to convert the value from the configuration file into a Settings type
     settings.try_deserialize()
