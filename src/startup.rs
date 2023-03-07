@@ -4,10 +4,16 @@ use sqlx::PgPool;
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
 
+use crate::email_client::EmailClient;
 use crate::routes::{handle_create_subscription, health_check};
 
-pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Error> {
+pub fn run(
+    listener: TcpListener,
+    db_pool: PgPool,
+    email_client: EmailClient,
+) -> Result<Server, std::io::Error> {
     let db_pool = web::Data::new(db_pool);
+    let email_client = web::Data::new(email_client);
 
     let server = HttpServer::new(move || {
         // App is where your application logic lives: routing, middlewares, request handler, etc
@@ -18,6 +24,7 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(handle_create_subscription))
             .app_data(db_pool.clone())
+            .app_data(email_client.clone())
     })
     .listen(listener)?
     .run();

@@ -6,6 +6,8 @@ use sqlx::{
     ConnectOptions,
 };
 
+use crate::domain::subscriber_email::SubscriberEmail;
+
 #[derive(Debug)]
 pub enum Environment {
     Development,
@@ -16,6 +18,7 @@ pub enum Environment {
 pub struct Settings {
     pub application: ApplicationSettings,
     pub database: DatabaseSettings,
+    pub email_client: EmailClientSettings,
 }
 
 #[derive(serde::Deserialize)]
@@ -23,6 +26,13 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub api_key: Secret<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -56,6 +66,18 @@ impl Settings {
 
     pub fn set_db_name(&mut self, db_name: String) {
         self.database.set_db_name(db_name)
+    }
+
+    pub fn get_email_client_sender(&self) -> Result<SubscriberEmail, String> {
+        return self.email_client.get_sender_email();
+    }
+
+    pub fn get_email_client_base_url(&self) -> String {
+        return self.email_client.get_base_url();
+    }
+
+    pub fn get_email_client_api(&self) -> Secret<String> {
+        return self.email_client.get_api_key();
     }
 }
 
@@ -95,6 +117,20 @@ impl ApplicationSettings {
 
     pub fn get_host(&self) -> String {
         self.host.clone()
+    }
+}
+
+impl EmailClientSettings {
+    pub fn get_sender_email(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
+    }
+
+    pub fn get_base_url(&self) -> String {
+        self.base_url.clone()
+    }
+
+    pub fn get_api_key(&self) -> Secret<String> {
+        self.api_key.clone()
     }
 }
 

@@ -27,10 +27,15 @@ tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 tracing-bunyan-formatter = { version = "0.3" }
 tracing-log = { version = "0.1" }
 secrecy = { version = "0.8", features = ["serde"] }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tracing-actix-web = { version = "0.7" }
 # We need this library because of config structs would fail to deserialize integers.
 serde-aux = { version = "4" }
+unicode-segmentation = { version = "1.10" }
+claim = { version = "0.5"}
+validator = { version = "0.16" }
+fake = { version = "2.5" }
+wiremock = { version = "0.5" }
 
 [dependencies.sqlx]
 version = "0.6.2"
@@ -44,3 +49,4 @@ features = [
   "migrate",
   "offline"
 ]
+

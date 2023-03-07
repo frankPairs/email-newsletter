@@ -1,14 +1,9 @@
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
-use serde::Deserialize;
 use sqlx::{query, PgPool};
 use uuid::Uuid;
 
-#[derive(Deserialize)]
-pub struct CreateSubscriptionBody {
-    name: String,
-    email: String,
-}
+use crate::domain::new_subscriber::{NewSubscriber, NewSubscriberBody};
 
 #[tracing::instrument(
     name = "Creating a new subscriber handler",
@@ -20,28 +15,36 @@ pub struct CreateSubscriptionBody {
     )
 )]
 pub async fn handle_create_subscription(
-    body: web::Json<CreateSubscriptionBody>,
+    body: web::Json<NewSubscriberBody>,
     db_pool: web::Data<PgPool>,
 ) -> impl Responder {
-    match create_subscription(&body, &db_pool).await {
+    let new_subscriber: NewSubscriber = match body.try_into() {
+        Ok(subscriber) => subscriber,
+        Err(err) => {
+            tracing::error!("Validation error: {:?}", err);
+            return HttpResponse::BadRequest().finish();
+        }
+    };
+
+    match create_subscription(&new_subscriber, &db_pool).await {
         Ok(_) => {
             tracing::info!("New subscriber was created successfully.");
-            HttpResponse::Created()
+            HttpResponse::Created().finish()
         }
         Err(err) => {
             // We used the debug format {:?} in order to get as much information as possible
             tracing::error!("Failed to execute query: {:?}", err);
-            HttpResponse::InternalServerError()
+            HttpResponse::InternalServerError().finish()
         }
     }
 }
 
 #[tracing::instrument(
     name = "Insert a new subscriber into the database",
-    skip(body, db_pool)
+    skip(new_subscriber, db_pool)
 )]
 async fn create_subscription(
-    body: &CreateSubscriptionBody,
+    new_subscriber: &NewSubscriber,
     db_pool: &web::Data<PgPool>,
 ) -> Result<(), sqlx::Error> {
     query!(
@@ -50,15 +53,14 @@ async fn create_subscription(
         VALUES ($1, $2, $3, $4)
         "#,
         Uuid::new_v4(),
-        body.email,
-        body.name,
+        new_subscriber.email.as_ref(),
+        new_subscriber.name.as_ref(),
         Utc::now()
     )
     .execute(db_pool.get_ref())
     .await
     .map_err(|err| {
         tracing::error!("Failed to execute query: {:?}", err);
-
         err
     });
 

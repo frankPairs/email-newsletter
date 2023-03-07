@@ -9,3 +9,6 @@ port = "5532"
 host = "localhost"
 db_name = "postgres"
 
+[email_client]
+sender_email = "francisco.parejo.lopez@gmail.com"
+base_url = "https://api.sendgrid.com/v3"

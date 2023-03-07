@@ -1,9 +1,13 @@
+use secrecy::ExposeSecret;
 use sqlx::{migrate, query, Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
 use std::net::TcpListener;
 use uuid::Uuid;
 
-use email_newsletter::config::{get_configuration, DatabaseSettings};
+use email_newsletter::{
+    config::{get_configuration, DatabaseSettings},
+    email_client::EmailClient,
+};
 
 struct TestApp {
     pub address: String,
@@ -19,9 +23,18 @@ async fn spawn_app() -> TestApp {
     config.set_db_name(Uuid::new_v4().to_string());
 
     let db_pool = configure_db(&config.database).await;
+
+    let sender_email = config
+        .get_email_client_sender()
+        .expect("Sender email is not valid");
+    let email_client = EmailClient::new(
+        config.get_email_client_base_url(),
+        sender_email,
+        config.get_email_client_api(),
+    );
     let port = listener.local_addr().unwrap().port();
-    let server =
-        email_newsletter::startup::run(listener, db_pool.clone()).expect("Faild to bind address");
+    let server = email_newsletter::startup::run(listener, db_pool.clone(), email_client)
+        .expect("Faild to bind address");
 
     tokio::spawn(server);
 
@@ -115,6 +128,7 @@ async fn subscribe_returns_400_when_body_is_not_valid() {
             HashMap::from([("email", "frank@test.com")]),
             "missing name parameter",
         ),
+        (HashMap::from([("name", "")]), "name cannot be empty"),
     ];
 
     for (invalid_body, error_message) in test_cases {
