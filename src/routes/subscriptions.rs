@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
-use sqlx::{query, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::new_subscriber::{NewSubscriber, NewSubscriberBody};
@@ -47,16 +47,16 @@ async fn create_subscription(
     new_subscriber: &NewSubscriber,
     db_pool: &web::Data<PgPool>,
 ) -> Result<(), sqlx::Error> {
-    query!(
+    sqlx::query(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at) 
         VALUES ($1, $2, $3, $4)
         "#,
-        Uuid::new_v4(),
-        new_subscriber.email.as_ref(),
-        new_subscriber.name.as_ref(),
-        Utc::now()
     )
+    .bind(Uuid::new_v4())
+    .bind(new_subscriber.email.as_ref())
+    .bind(new_subscriber.name.as_ref())
+    .bind(Utc::now())
     .execute(db_pool.get_ref())
     .await
     .map_err(|err| {

@@ -14,28 +14,28 @@ pub enum Environment {
     Production,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct Settings {
     pub application: ApplicationSettings,
     pub database: DatabaseSettings,
     pub email_client: EmailClientSettings,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
     pub api_key: Secret<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub username: String,
     // secrecy protects secret information and prevents them to be exposed (eg: via logs)
@@ -64,10 +64,6 @@ impl Settings {
         self.database.get_db_options_without_name()
     }
 
-    pub fn set_db_name(&mut self, db_name: String) {
-        self.database.set_db_name(db_name)
-    }
-
     pub fn get_email_client_sender(&self) -> Result<SubscriberEmail, String> {
         return self.email_client.get_sender_email();
     }
@@ -78,6 +74,14 @@ impl Settings {
 
     pub fn get_email_client_api(&self) -> Secret<String> {
         return self.email_client.get_api_key();
+    }
+
+    pub fn set_db_name(&mut self, db_name: String) {
+        self.database.set_db_name(db_name)
+    }
+
+    pub fn set_app_port(&mut self, port: u16) {
+        self.application.port = port;
     }
 }
 

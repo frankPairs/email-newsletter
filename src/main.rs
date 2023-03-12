@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
         config.get_email_client_base_url(),
         sender_email,
         config.get_email_client_api(),
+        None,
     );
     let listener = TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
 
