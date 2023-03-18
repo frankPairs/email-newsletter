@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use email_newsletter::{
     config::{get_configuration, DatabaseSettings},
-    startup::{build, get_connection_db_pool},
+    startup::{get_connection_db_pool, Application},
 };
 
 pub struct TestApp {
@@ -22,12 +22,16 @@ impl TestApp {
 
         configure_db(&config.database).await;
 
-        let server = build(config.clone());
+        let application = Application::build(config.clone())
+            .await
+            .expect("Failed to build application.");
 
-        tokio::spawn(server);
+        let address = format!("http://127.0.0.1: {}", application.get_port());
+
+        tokio::spawn(application.run_until_stop());
 
         TestApp {
-            address: todo!(),
+            address,
             db_pool: get_connection_db_pool(&config.database),
         }
     }

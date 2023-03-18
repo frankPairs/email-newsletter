@@ -9,6 +9,43 @@ use crate::config::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
 use crate::routes::{handle_create_subscription, health_check};
 
+pub struct Application {
+    pub port: u16,
+    pub server: Server,
+}
+
+impl Application {
+    pub async fn build(config: Settings) -> Result<Self, std::io::Error> {
+        let db_pool = PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(2))
+            .connect_lazy_with(config.get_db_options());
+        let sender_email = config
+            .get_email_client_sender()
+            .expect("Sender email is not valid");
+        let email_client = EmailClient::new(
+            config.get_email_client_base_url(),
+            sender_email,
+            config.get_email_client_api(),
+            None,
+        );
+
+        let listener =
+            TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
+        let port = listener.local_addr().unwrap().port();
+        let server = run(listener, db_pool, email_client)?;
+
+        Ok(Self { port, server })
+    }
+
+    pub fn get_port(&self) -> u16 {
+        self.port
+    }
+
+    pub async fn run_until_stop(self) -> Result<(), std::io::Error> {
+        self.server.await
+    }
+}
+
 pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
@@ -32,25 +69,6 @@ pub fn run(
     .run();
 
     Ok(server)
-}
-
-pub async fn build(config: Settings) -> Result<Server, std::io::Error> {
-    let db_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(config.get_db_options());
-    let sender_email = config
-        .get_email_client_sender()
-        .expect("Sender email is not valid");
-    let email_client = EmailClient::new(
-        config.get_email_client_base_url(),
-        sender_email,
-        config.get_email_client_api(),
-        None,
-    );
-
-    let listener = TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
-
-    run(listener, db_pool, email_client)
 }
 
 pub fn get_connection_db_pool(config: &DatabaseSettings) -> Pool<Postgres> {
