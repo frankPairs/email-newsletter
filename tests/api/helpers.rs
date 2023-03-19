@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use reqwest::Response;
 use sqlx::{migrate, Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 
@@ -34,6 +37,20 @@ impl TestApp {
             address,
             db_pool: get_connection_db_pool(&config.database),
         }
+    }
+
+    pub async fn post_subscription(&self, body: HashMap<&str, &str>) -> Response {
+        let client = reqwest::Client::new();
+        let url = format!("http://{}/subscriptions", self.address);
+
+        let response = client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+
+        response
     }
 }
 

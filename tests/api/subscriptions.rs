@@ -11,19 +11,12 @@ use email_newsletter::{
 #[tokio::test]
 async fn subscribe_returns_200_when_body_is_valid() {
     let test_app = TestApp::spawn_app().await;
-    let client = reqwest::Client::new();
-    let url = format!("http://{}/subscriptions", test_app.address);
     let mut body = HashMap::new();
 
     body.insert("name", "Frank");
     body.insert("email", "frank@test.com");
 
-    let response = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .expect("Failed to execute request.");
+    let response = test_app.post_subscription(body).await;
     let new_subscription = sqlx::query("SELECT email, name FROM subscriptions;")
         .map(|row: PgRow| NewSubscriber {
             email: SubscriberEmail::parse(row.get("email")).unwrap(),
@@ -41,8 +34,7 @@ async fn subscribe_returns_200_when_body_is_valid() {
 #[tokio::test]
 async fn subscribe_returns_400_when_body_is_not_valid() {
     let test_app = TestApp::spawn_app().await;
-    let client = reqwest::Client::new();
-    let url = format!("http://{}/subscriptions", test_app.address);
+
     // This is a common practice and it is called table-driven tests. In this case, it simulates different kind of possible request bodies
     // where API should return 400.
     let test_cases: Vec<(HashMap<&str, &str>, &str)> = vec![
@@ -59,12 +51,7 @@ async fn subscribe_returns_400_when_body_is_not_valid() {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = client
-            .post(&url)
-            .json(&invalid_body)
-            .send()
-            .await
-            .expect("Failed to execute request.");
+        let response = test_app.post_subscription(invalid_body).await;
 
         assert_eq!(
             400,
