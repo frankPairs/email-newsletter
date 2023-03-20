@@ -47,10 +47,10 @@ async fn create_subscription(
     new_subscriber: &NewSubscriber,
     db_pool: &web::Data<PgPool>,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
+    let _ = sqlx::query(
         r#"
-        INSERT INTO subscriptions (id, email, name, subscribed_at) 
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO subscriptions (id, email, name, subscribed_at, status) 
+        VALUES ($1, $2, $3, $4, 'pending_confirmation')
         "#,
     )
     .bind(Uuid::new_v4())
