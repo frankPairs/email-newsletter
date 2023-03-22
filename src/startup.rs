@@ -28,11 +28,16 @@ impl Application {
             config.get_email_client_api(),
             None,
         );
+        let redis_client = redis::Client::open(config.get_redis_address())
+            .expect("Failed to connect redis server.");
+        let redis_conn = redis_client
+            .get_connection()
+            .expect("Failed to connect redis server");
 
         let listener =
             TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, db_pool, email_client)?;
+        let server = run(listener, db_pool, email_client, redis_conn)?;
 
         Ok(Self { port, server })
     }
@@ -50,9 +55,11 @@ pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
+    redis_conn: redis::Connection,
 ) -> Result<Server, std::io::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
+    let redis_conn = web::Data::new(redis_conn);
 
     let server = HttpServer::new(move || {
         // App is where your application logic lives: routing, middlewares, request handler, etc
@@ -64,6 +71,7 @@ pub fn run(
             .route("/subscriptions", web::post().to(handle_create_subscription))
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
+            .app_data(redis_conn.clone())
     })
     .listen(listener)?
     .run();

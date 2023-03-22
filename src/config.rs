@@ -19,6 +19,7 @@ pub struct Settings {
     pub application: ApplicationSettings,
     pub database: DatabaseSettings,
     pub email_client: EmailClientSettings,
+    pub redis: RedisSettings,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -45,6 +46,12 @@ pub struct DatabaseSettings {
     pub host: String,
     pub db_name: String,
     pub require_ssl: bool,
+}
+
+#[derive(serde::Deserialize, Clone)]
+pub struct RedisSettings {
+    pub port: u16,
+    pub host: String,
 }
 
 impl Settings {
@@ -82,6 +89,10 @@ impl Settings {
 
     pub fn set_app_port(&mut self, port: u16) {
         self.application.port = port;
+    }
+
+    pub fn get_redis_address(&self) -> String {
+        self.redis.get_address()
     }
 }
 
@@ -135,6 +146,12 @@ impl EmailClientSettings {
 
     pub fn get_api_key(&self) -> Secret<String> {
         self.api_key.clone()
+    }
+}
+
+impl RedisSettings {
+    pub fn get_address(&self) -> String {
+        format!("redis://{}:{}", self.host, self.port)
     }
 }
 
