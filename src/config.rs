@@ -44,7 +44,7 @@ pub struct DatabaseSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
-    pub db_name: String,
+    pub name: String,
     pub require_ssl: bool,
 }
 
@@ -83,8 +83,20 @@ impl Settings {
         return self.email_client.get_api_key();
     }
 
+    pub fn set_email_client_base_url(&mut self, new_base_url: String) {
+        self.email_client.base_url = new_base_url
+    }
+
+    pub fn get_db_name(&self) -> String {
+        self.database.get_name()
+    }
+
+    pub fn get_db_username(&self) -> String {
+        self.database.get_username()
+    }
+
     pub fn set_db_name(&mut self, db_name: String) {
-        self.database.set_db_name(db_name)
+        self.database.set_name(db_name)
     }
 
     pub fn set_app_port(&mut self, port: u16) {
@@ -98,7 +110,7 @@ impl Settings {
 
 impl DatabaseSettings {
     pub fn get_db_options(&self) -> PgConnectOptions {
-        let mut db_options = self.get_db_options_without_name().database(&self.db_name);
+        let mut db_options = self.get_db_options_without_name().database(&self.name);
 
         db_options.log_statements(tracing::log::LevelFilter::Trace);
 
@@ -120,8 +132,16 @@ impl DatabaseSettings {
             .ssl_mode(ssl_mode)
     }
 
-    pub fn set_db_name(&mut self, new_db_name: String) {
-        self.db_name = new_db_name
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_username(&self) -> String {
+        self.username.clone()
+    }
+
+    pub fn set_name(&mut self, new_db_name: String) {
+        self.name = new_db_name
     }
 }
 
@@ -146,6 +166,10 @@ impl EmailClientSettings {
 
     pub fn get_api_key(&self) -> Secret<String> {
         self.api_key.clone()
+    }
+
+    pub fn set_base_url(&mut self, new_base_url: String) {
+        self.base_url = new_base_url
     }
 }
 

@@ -1,8 +1,9 @@
 use sqlx::{postgres::PgRow, Row};
 use std::collections::HashMap;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 
 use crate::helpers::TestApp;
-
 use email_newsletter::{
     domain::new_subscriber::NewSubscriber, domain::subscriber_email::SubscriberEmail,
     domain::subscriber_name::SubscriberName,
@@ -15,6 +16,13 @@ async fn subscribe_returns_200_when_body_is_valid() {
 
     body.insert("name", "Frank");
     body.insert("email", "frank@test.com");
+
+    Mock::given(path("/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
 
     let response = test_app.post_subscription(body).await;
     let new_subscription = sqlx::query("SELECT email, name FROM subscriptions;")

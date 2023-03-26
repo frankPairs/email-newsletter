@@ -3,11 +3,14 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::new_subscriber::{NewSubscriber, NewSubscriberBody};
+use crate::{
+    domain::new_subscriber::{NewSubscriber, NewSubscriberBody},
+    email_client::EmailClient,
+};
 
 #[tracing::instrument(
     name = "Creating a new subscriber handler",
-    skip(body, db_pool),
+    skip(body, db_pool, email_client),
     fields(
         subscriber_email = %body.email,
         subscriber_name = %body.name
@@ -17,6 +20,7 @@ use crate::domain::new_subscriber::{NewSubscriber, NewSubscriberBody};
 pub async fn handle_create_subscription(
     body: web::Json<NewSubscriberBody>,
     db_pool: web::Data<PgPool>,
+    email_client: web::Data<EmailClient>,
 ) -> impl Responder {
     let new_subscriber: NewSubscriber = match body.try_into() {
         Ok(subscriber) => subscriber,
@@ -26,17 +30,22 @@ pub async fn handle_create_subscription(
         }
     };
 
-    match create_subscription(&new_subscriber, &db_pool).await {
-        Ok(_) => {
-            tracing::info!("New subscriber was created successfully.");
-            HttpResponse::Created().finish()
-        }
-        Err(err) => {
-            // We used the debug format {:?} in order to get as much information as possible
-            tracing::error!("Failed to execute query: {:?}", err);
-            HttpResponse::InternalServerError().finish()
-        }
+    if let Err(err) = create_subscription(&new_subscriber, &db_pool).await {
+        // We used the debug format {:?} in order to get as much information as possible
+        tracing::error!("Failed to execute query: {:?}", err);
+        return HttpResponse::InternalServerError().finish();
     }
+
+    if let Err(err) = send_confirmation_email(&email_client, &new_subscriber).await {
+        tracing::error!(
+            "Failed to send an email to {}: {:?}",
+            new_subscriber.email.as_ref(),
+            err
+        );
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    HttpResponse::Created().finish()
 }
 
 #[tracing::instrument(
@@ -65,4 +74,28 @@ async fn create_subscription(
     });
 
     Ok(())
+}
+
+async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: &NewSubscriber,
+) -> Result<(), reqwest::Error> {
+    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    let html_body = format!(
+        r#"
+            <div>
+                <h1>Welcome to our newsletter!</>
+                <p>Click <a href="{}">here</a> to confirm your subscription!</p>
+            </div>
+        "#,
+        confirmation_link
+    );
+
+    email_client
+        .send_email(
+            new_subscriber.email.clone(),
+            "Welcome to our newsletter",
+            html_body.as_str(),
+        )
+        .await
 }
