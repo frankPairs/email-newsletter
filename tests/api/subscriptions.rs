@@ -1,3 +1,4 @@
+use email_newsletter::domain::subscriber::Subscriber;
 use email_newsletter::email_client::SendEmailBody;
 use linkify::{LinkFinder, LinkKind};
 use sqlx::{postgres::PgRow, Row};
@@ -7,8 +8,8 @@ use wiremock::{Mock, ResponseTemplate};
 
 use crate::helpers::TestApp;
 use email_newsletter::{
-    domain::new_subscriber::NewSubscriber, domain::subscriber_email::SubscriberEmail,
-    domain::subscriber_name::SubscriberName,
+    domain::subscriber_email::SubscriberEmail, domain::subscriber_name::SubscriberName,
+    domain::subscriber_status::SubscriberStatus,
 };
 
 #[tokio::test]
@@ -22,23 +23,44 @@ async fn subscribe_returns_200_when_body_is_valid() {
     Mock::given(path("/mail/send"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
-        .expect(1)
         .mount(&test_app.email_server)
         .await;
 
     let response = test_app.post_subscription(body).await;
-    let new_subscription = sqlx::query("SELECT email, name FROM subscriptions;")
-        .map(|row: PgRow| NewSubscriber {
-            email: SubscriberEmail::parse(row.get("email")).unwrap(),
-            name: SubscriberName::parse(row.get("name")).unwrap(),
-        })
-        .fetch_one(&test_app.db_pool)
-        .await
-        .expect("Query to fetch subscriptions failed.");
 
-    assert_eq!(new_subscription.email.as_ref(), "frank@test.com");
-    assert_eq!(new_subscription.name.as_ref(), "Frank");
     assert_eq!(201, response.status().as_u16());
+}
+
+#[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+    let test_app = TestApp::spawn_app().await;
+    let mut body = HashMap::new();
+
+    body.insert("name", "Test");
+    body.insert("email", "test@test.com");
+
+    Mock::given(path("/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&test_app.email_server)
+        .await;
+
+    test_app.post_subscription(body).await;
+
+    let new_subscription: Subscriber =
+        sqlx::query("SELECT email, name, status FROM subscriptions;")
+            .map(|row: PgRow| Subscriber {
+                email: SubscriberEmail::parse(row.get("email")).unwrap(),
+                name: SubscriberName::parse(row.get("name")).unwrap(),
+                status: SubscriberStatus::parse(row.get("status")).unwrap(),
+            })
+            .fetch_one(&test_app.db_pool)
+            .await
+            .expect("Query to fetch subscriptions failed.");
+
+    assert_eq!(new_subscription.email.as_ref(), "test@test.com");
+    assert_eq!(new_subscription.name.as_ref(), "Test");
+    assert_eq!(new_subscription.status.as_ref(), "pending_confirmation");
 }
 
 #[tokio::test]

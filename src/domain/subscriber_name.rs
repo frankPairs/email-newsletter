@@ -3,7 +3,7 @@ use unicode_segmentation::UnicodeSegmentation;
 const MAX_CHAR_LENGHT: usize = 256;
 const FORBIDDEN_CHARS: [char; 9] = ['/', '{', '}', '"', '>', '<', '\\', '(', ')'];
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct SubscriberName(String);
 
 impl SubscriberName {

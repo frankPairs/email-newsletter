@@ -1,6 +1,6 @@
 use validator::validate_email;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {

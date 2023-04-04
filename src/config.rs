@@ -67,10 +67,6 @@ impl Settings {
         self.database.get_db_options()
     }
 
-    pub fn get_db_options_without_name(&self) -> PgConnectOptions {
-        self.database.get_db_options_without_name()
-    }
-
     pub fn get_email_client_sender(&self) -> Result<SubscriberEmail, String> {
         return self.email_client.get_sender_email();
     }
@@ -110,26 +106,34 @@ impl Settings {
 
 impl DatabaseSettings {
     pub fn get_db_options(&self) -> PgConnectOptions {
-        let mut db_options = self.get_db_options_without_name().database(&self.name);
-
-        db_options.log_statements(tracing::log::LevelFilter::Trace);
-
-        db_options
-    }
-
-    pub fn get_db_options_without_name(&self) -> PgConnectOptions {
         let ssl_mode = if self.require_ssl {
             PgSslMode::Require
         } else {
             PgSslMode::Prefer
         };
 
-        PgConnectOptions::new()
+        let mut db_options = PgConnectOptions::new()
             .host(&self.host)
             .password(&self.password.expose_secret())
             .username(&self.username)
             .port(self.port)
-            .ssl_mode(ssl_mode)
+            .database(&self.name)
+            .ssl_mode(ssl_mode);
+
+        db_options.log_statements(tracing::log::LevelFilter::Trace);
+
+        db_options
+    }
+
+    pub fn get_uri(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.name
+        )
     }
 
     pub fn get_name(&self) -> String {

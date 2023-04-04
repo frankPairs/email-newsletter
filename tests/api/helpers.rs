@@ -1,8 +1,6 @@
 use reqwest::Response;
-use sqlx::{migrate, PgPool};
+use sqlx::{migrate, Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
-use std::io::Write;
-use std::process::Command;
 use uuid::Uuid;
 use wiremock::MockServer;
 
@@ -11,20 +9,17 @@ use email_newsletter::{
     startup::{get_connection_db_pool, Application},
 };
 
-const TEST_DB_CONTAINER_NAME: &str = "email_newsletter_db";
-
 pub struct TestApp {
     pub config: Settings,
     pub address: String,
     pub db_pool: PgPool,
-    pub db_test_name: String,
     pub email_server: MockServer,
 }
 
 impl TestApp {
     pub async fn spawn_app() -> TestApp {
         let mut config = get_configuration().expect("Missing configuration file.");
-        let db_test_name = format!("a_{}", Uuid::new_v4().to_string().replace('-', "_"));
+        let db_test_name = format!("db_{}", Uuid::new_v4().to_string().replace('-', "_"));
         let email_server = MockServer::start().await;
 
         // We are using port 0 as way to define a different port per each test. Port 0 is a special case that operating systems
@@ -32,7 +27,7 @@ impl TestApp {
         config.set_app_port(0);
         config.set_email_client_base_url(email_server.uri());
 
-        configure_db(&config.database, db_test_name.clone()).await;
+        let db_pool = configure_db(&mut config.database, db_test_name.clone()).await;
 
         let application = Application::build(config.clone())
             .await
@@ -45,8 +40,7 @@ impl TestApp {
         TestApp {
             address,
             config: config.clone(),
-            db_pool: get_connection_db_pool(&config.database),
-            db_test_name,
+            db_pool,
             email_server,
         }
     }
@@ -66,52 +60,27 @@ impl TestApp {
     }
 }
 
-impl Drop for TestApp {
-    fn drop(&mut self) {
-        let remove_db_command = format!(
-            r#"docker exec {} psql -U {} {} -c "DROP DATABASE {};""#,
-            TEST_DB_CONTAINER_NAME,
-            self.config.get_db_username(),
-            self.config.get_db_name(),
-            self.db_test_name
-        );
-        let output = Command::new("/bin/bash")
-            .args(["-c", remove_db_command.as_str()])
-            .output()
-            .expect("Failed to remove a test database");
-
-        if !output.status.success() {
-            std::io::stderr().write_all(&output.stderr).unwrap();
-            panic!("Failed to remove a test database.");
-        }
-
-        println!("Database {} removed!!", self.db_test_name);
-    }
-}
-
-async fn configure_db(config: &DatabaseSettings, db_test_name: String) -> PgPool {
-    let create_db_command = format!(
-        r#"docker exec {} psql -U {} {} -c "CREATE DATABASE {};""#,
-        TEST_DB_CONTAINER_NAME,
-        config.get_username(),
-        config.get_name(),
-        db_test_name
-    );
-    let output = Command::new("/bin/bash")
-        .args(["-c", create_db_command.as_str()])
-        .output()
-        .expect("Failed to create a test database");
-
-    if !output.status.success() {
-        std::io::stderr().write_all(&output.stderr).unwrap();
-        panic!("Failed to create a test database.");
-    }
-
-    let db_pool = PgPool::connect_with(config.get_db_options())
+async fn configure_db(db_config: &mut DatabaseSettings, db_test_name: String) -> PgPool {
+    // Create database
+    let mut connection = PgConnection::connect_with(&db_config.get_db_options())
         .await
-        .expect("Failed to connect with the database");
+        .expect("Failed to connect to Postgres.");
+
+    connection
+        .execute(&*format!(r#"CREATE DATABASE "{}";"#, db_test_name))
+        .await
+        .expect("Failed to create database.");
+
+    connection
+        .close()
+        .await
+        .expect("Failed to close connection.");
 
     // Execute migrations
+    db_config.set_name(db_test_name.clone());
+
+    let db_pool = get_connection_db_pool(db_config);
+
     migrate!("./migrations")
         .run(&db_pool)
         .await
