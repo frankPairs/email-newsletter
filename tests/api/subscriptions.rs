@@ -1,3 +1,5 @@
+use email_newsletter::email_client::SendEmailBody;
+use linkify::{LinkFinder, LinkKind};
 use sqlx::{postgres::PgRow, Row};
 use std::collections::HashMap;
 use wiremock::matchers::{method, path};
@@ -68,4 +70,35 @@ async fn subscribe_returns_400_when_body_is_not_valid() {
             error_message
         );
     }
+}
+
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_with_a_link() {
+    let test_app = TestApp::spawn_app().await;
+    let mut body = HashMap::new();
+
+    body.insert("name", "Test");
+    body.insert("email", "test@test.com");
+
+    Mock::given(path("/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&test_app.email_server)
+        .await;
+
+    test_app.post_subscription(body).await;
+
+    // Get the first request that was sent to the email server
+    let received_requests = &test_app.email_server.received_requests().await.unwrap();
+
+    assert_eq!(received_requests.len(), 1);
+
+    let body: &SendEmailBody = &received_requests[0].body_json().unwrap();
+
+    let links: Vec<_> = LinkFinder::new()
+        .links(body.content[0].value.as_str())
+        .filter(|l| *l.kind() == LinkKind::Url)
+        .collect();
+
+    assert_eq!(links.len(), 1);
 }

@@ -37,6 +37,7 @@ validator = { version = "0.16" }
 fake = { version = "2.5" }
 wiremock = { version = "0.5" }
 redis = { version = "0.22.3", features = ["tokio-comp"] }
+linkify = { version = "0.9" }
 
 [dependencies.sqlx]
 version = "0.6.2"

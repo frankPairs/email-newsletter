@@ -36,6 +36,8 @@ pub async fn handle_create_subscription(
         return HttpResponse::InternalServerError().finish();
     }
 
+    println!("created!!!");
+
     if let Err(err) = send_confirmation_email(&email_client, &new_subscriber).await {
         tracing::error!(
             "Failed to send an email to {}: {:?}",

@@ -13,28 +13,28 @@ pub struct EmailClient {
     api_key: Secret<String>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct SendEmailBody {
-    personalizations: Vec<SengridPersonalization>,
-    from: SengridEmail,
-    subject: String,
-    content: Vec<SengridContent>,
+    pub personalizations: Vec<SengridPersonalization>,
+    pub from: SengridEmail,
+    pub subject: String,
+    pub content: Vec<SengridContent>,
 }
 
-#[derive(serde::Serialize)]
-struct SengridEmail {
-    email: String,
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct SengridEmail {
+    pub email: String,
 }
 
-#[derive(serde::Serialize)]
-struct SengridPersonalization {
-    to: Vec<SengridEmail>,
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct SengridPersonalization {
+    pub to: Vec<SengridEmail>,
 }
 
-#[derive(serde::Serialize)]
-struct SengridContent {
-    content_type: String,
-    value: String,
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct SengridContent {
+    pub content_type: String,
+    pub value: String,
 }
 
 impl EmailClient {
