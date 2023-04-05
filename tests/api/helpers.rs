@@ -19,7 +19,7 @@ pub struct TestApp {
 impl TestApp {
     pub async fn spawn_app() -> TestApp {
         let mut config = get_configuration().expect("Missing configuration file.");
-        let db_test_name = format!("db_{}", Uuid::new_v4().to_string().replace('-', "_"));
+
         let email_server = MockServer::start().await;
 
         // We are using port 0 as way to define a different port per each test. Port 0 is a special case that operating systems
@@ -27,7 +27,7 @@ impl TestApp {
         config.set_app_port(0);
         config.set_email_client_base_url(email_server.uri());
 
-        let db_pool = configure_db(&mut config.database, db_test_name.clone()).await;
+        let db_pool = configure_db(&mut config.database).await;
 
         let application = Application::build(config.clone())
             .await
@@ -60,7 +60,9 @@ impl TestApp {
     }
 }
 
-async fn configure_db(db_config: &mut DatabaseSettings, db_test_name: String) -> PgPool {
+async fn configure_db(db_config: &mut DatabaseSettings) -> PgPool {
+    let db_test_name = format!("db_{}", Uuid::new_v4().to_string().replace('-', "_"));
+
     // Create database
     let mut connection = PgConnection::connect_with(&db_config.get_db_options())
         .await
