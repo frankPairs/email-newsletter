@@ -115,12 +115,10 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
 
     assert_eq!(received_requests.len(), 1);
 
-    let body: &SendEmailBody = &received_requests[0].body_json().unwrap();
+    let confirmation_link = test_app.get_confirmation_link(&received_requests[0]).await;
 
-    let links: Vec<_> = LinkFinder::new()
-        .links(body.content[0].value.as_str())
-        .filter(|l| *l.kind() == LinkKind::Url)
-        .collect();
-
-    assert_eq!(links.len(), 1);
+    assert_eq!(
+        confirmation_link.html.as_str(),
+        format!("{}/subscriptions/confirm?token=1234", test_app.address)
+    );
 }

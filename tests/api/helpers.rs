@@ -1,4 +1,6 @@
+use linkify::{LinkFinder, LinkKind};
 use reqwest::Response;
+use reqwest::Url;
 use sqlx::{migrate, Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -6,14 +8,20 @@ use wiremock::MockServer;
 
 use email_newsletter::{
     config::{get_configuration, DatabaseSettings, Settings},
+    email_client::SendEmailBody,
     startup::{get_connection_db_pool, Application},
 };
+
+pub struct ConfirmationLink {
+    pub html: reqwest::Url,
+}
 
 pub struct TestApp {
     pub config: Settings,
     pub address: String,
     pub db_pool: PgPool,
     pub email_server: MockServer,
+    pub port: u16,
 }
 
 impl TestApp {
@@ -32,8 +40,9 @@ impl TestApp {
         let application = Application::build(config.clone())
             .await
             .expect("Failed to build application.");
+        let application_port = application.get_port();
 
-        let address = format!("http://127.0.0.1:{}", application.get_port());
+        let address = format!("http://127.0.0.1:{}", application_port);
 
         tokio::spawn(application.run_until_stop());
 
@@ -42,6 +51,7 @@ impl TestApp {
             config: config.clone(),
             db_pool,
             email_server,
+            port: application_port,
         }
     }
 
@@ -57,6 +67,27 @@ impl TestApp {
             .expect("Failed to execute request.");
 
         response
+    }
+
+    pub async fn get_confirmation_link(
+        &self,
+        email_request: &wiremock::Request,
+    ) -> ConfirmationLink {
+        let body: &SendEmailBody = &email_request.body_json().unwrap();
+        let links: Vec<_> = LinkFinder::new()
+            .links(body.content[0].value.as_str())
+            .filter(|l| *l.kind() == LinkKind::Url)
+            .collect();
+        let raw_confirmation_link = links[0].as_str();
+        let mut confirmation_link = Url::parse(raw_confirmation_link).unwrap();
+
+        assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
+
+        confirmation_link.set_port(Some(self.port)).unwrap();
+
+        ConfirmationLink {
+            html: confirmation_link,
+        }
     }
 }
 

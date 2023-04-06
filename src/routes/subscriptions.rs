@@ -6,11 +6,12 @@ use uuid::Uuid;
 use crate::{
     domain::new_subscriber::{NewSubscriber, NewSubscriberBody},
     email_client::EmailClient,
+    startup::ApplicationBaseUrl,
 };
 
 #[tracing::instrument(
     name = "Creating a new subscriber handler",
-    skip(body, db_pool, email_client),
+    skip(body, db_pool, email_client, base_url),
     fields(
         subscriber_email = %body.email,
         subscriber_name = %body.name
@@ -21,6 +22,7 @@ pub async fn handle_create_subscription(
     body: web::Json<NewSubscriberBody>,
     db_pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
+    base_url: web::Data<ApplicationBaseUrl>,
 ) -> impl Responder {
     let new_subscriber: NewSubscriber = match body.try_into() {
         Ok(subscriber) => subscriber,
@@ -36,7 +38,9 @@ pub async fn handle_create_subscription(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if let Err(err) = send_confirmation_email(&email_client, &new_subscriber).await {
+    if let Err(err) =
+        send_confirmation_email(&email_client, &new_subscriber, base_url.0.as_str()).await
+    {
         tracing::error!(
             "Failed to send an email to {}: {:?}",
             new_subscriber.email.as_ref(),
@@ -79,8 +83,9 @@ async fn create_subscription(
 async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: &NewSubscriber,
+    base_url: &str,
 ) -> Result<(), reqwest::Error> {
-    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    let confirmation_link = format!("{}/subscriptions/confirm?token=1234", base_url);
     let html_body = format!(
         r#"
             <div>

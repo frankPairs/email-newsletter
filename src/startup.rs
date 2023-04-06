@@ -14,6 +14,8 @@ pub struct Application {
     pub server: Server,
 }
 
+pub struct ApplicationBaseUrl(pub String);
+
 impl Application {
     pub async fn build(config: Settings) -> Result<Self, std::io::Error> {
         let db_pool = PgPoolOptions::new()
@@ -37,7 +39,13 @@ impl Application {
         let listener =
             TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, db_pool, email_client, redis_conn)?;
+        let server = run(
+            listener,
+            db_pool,
+            email_client,
+            redis_conn,
+            config.get_app_base_url(),
+        )?;
 
         Ok(Self { port, server })
     }
@@ -56,10 +64,12 @@ pub fn run(
     db_pool: PgPool,
     email_client: EmailClient,
     redis_conn: redis::Connection,
+    base_url: String,
 ) -> Result<Server, std::io::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
     let redis_conn = web::Data::new(redis_conn);
+    let base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
         // App is where your application logic lives: routing, middlewares, request handler, etc
@@ -76,6 +86,7 @@ pub fn run(
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(redis_conn.clone())
+            .app_data(base_url.clone())
     })
     .listen(listener)?
     .run();

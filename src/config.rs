@@ -27,6 +27,7 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+    pub base_url: String,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -61,6 +62,10 @@ impl Settings {
             self.application.get_host(),
             self.application.get_port()
         )
+    }
+
+    pub fn get_app_base_url(&self) -> String {
+        self.application.get_base_url()
     }
 
     pub fn get_db_options(&self) -> PgConnectOptions {
@@ -156,6 +161,10 @@ impl ApplicationSettings {
 
     pub fn get_host(&self) -> String {
         self.host.clone()
+    }
+
+    pub fn get_base_url(&self) -> String {
+        self.base_url.clone()
     }
 }
 
