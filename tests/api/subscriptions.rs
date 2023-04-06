@@ -1,6 +1,4 @@
 use email_newsletter::domain::subscriber::Subscriber;
-use email_newsletter::email_client::SendEmailBody;
-use linkify::{LinkFinder, LinkKind};
 use sqlx::{postgres::PgRow, Row};
 use std::collections::HashMap;
 use wiremock::matchers::{method, path};
@@ -48,10 +46,12 @@ async fn subscribe_persists_the_new_subscriber() {
     test_app.post_subscription(body).await;
 
     let new_subscription: Subscriber =
-        sqlx::query("SELECT email, name, status FROM subscriptions;")
+        sqlx::query("SELECT id, email, name, subscribed_at, status FROM subscriptions;")
             .map(|row: PgRow| Subscriber {
+                id: row.get("id"),
                 email: SubscriberEmail::parse(row.get("email")).unwrap(),
                 name: SubscriberName::parse(row.get("name")).unwrap(),
+                subscribed_at: row.get("subscribed_at"),
                 status: SubscriberStatus::parse(row.get("status")).unwrap(),
             })
             .fetch_one(&test_app.db_pool)

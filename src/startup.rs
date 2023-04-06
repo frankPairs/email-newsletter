@@ -3,6 +3,7 @@ use actix_web::{web, App, HttpServer};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Pool, Postgres};
 use std::net::TcpListener;
+use tokio::sync::Mutex;
 use tracing_actix_web::TracingLogger;
 
 use crate::config::{DatabaseSettings, Settings};
@@ -32,9 +33,6 @@ impl Application {
         );
         let redis_client = redis::Client::open(config.get_redis_address())
             .expect("Failed to connect redis server.");
-        let redis_conn = redis_client
-            .get_connection()
-            .expect("Failed to connect redis server");
 
         let listener =
             TcpListener::bind(config.get_address()).expect("Failed to bind the address.");
@@ -43,7 +41,7 @@ impl Application {
             listener,
             db_pool,
             email_client,
-            redis_conn,
+            redis_client,
             config.get_app_base_url(),
         )?;
 
@@ -63,12 +61,12 @@ pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
-    redis_conn: redis::Connection,
+    redis_client: redis::Client,
     base_url: String,
 ) -> Result<Server, std::io::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
-    let redis_conn = web::Data::new(redis_conn);
+    let redis_client = web::Data::new(redis_client);
     let base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
@@ -85,7 +83,7 @@ pub fn run(
             )
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
-            .app_data(redis_conn.clone())
+            .app_data(redis_client.clone())
             .app_data(base_url.clone())
     })
     .listen(listener)?
