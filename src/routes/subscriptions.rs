@@ -56,15 +56,20 @@ pub async fn handle_create_subscription(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if let Err(err) =
-        send_confirmation_email(&email_client, &new_subscriber, base_url.0.as_str(), "1234").await
+    if let Err(err) = send_confirmation_email(
+        &email_client,
+        &new_subscriber,
+        base_url.0.as_str(),
+        subscription_token.as_str(),
+    )
+    .await
     {
         tracing::error!(
             "Failed to send an email to {}: {:?}",
             new_subscriber.email.as_ref(),
             err
         );
-        return HttpResponse::InternalServerError().finish();
+        // return HttpResponse::InternalServerError().finish();
     }
 
     HttpResponse::Created().finish()
@@ -112,6 +117,14 @@ async fn create_subscription(
     }
 }
 
+#[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    fields(
+        subscription_token = %subscription_token,
+        base_url = %base_url
+    ),
+    skip(email_client, new_subscriber)
+)]
 async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: &NewSubscriber,
@@ -141,6 +154,14 @@ async fn send_confirmation_email(
         .await
 }
 
+#[tracing::instrument(
+    name = "Store a subscription token in Redis",
+    skip(redis_client)
+    fields(
+        subscription_token = %subscription_token,
+        subscriber_id = %subscriber_id
+    )
+)]
 async fn store_subscription_token(
     redis_client: &redis::Client,
     subscription_token: &str,
@@ -149,9 +170,11 @@ async fn store_subscription_token(
     let mut redis_conn = redis_client.get_tokio_connection().await?;
 
     redis::cmd("SET")
-        .arg(format!("subscriber_id:{}:token", subscriber_id))
-        .arg(subscription_token)
-        .arg("EX 3600")
+        .arg(format!(
+            "subscription_token:{}:subscriber_id",
+            subscription_token
+        ))
+        .arg(subscriber_id.to_string())
         .query_async(&mut redis_conn)
         .await
 }

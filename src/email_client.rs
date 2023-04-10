@@ -33,6 +33,7 @@ pub struct SengridPersonalization {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct SengridContent {
+    #[serde(rename(serialize = "type", deserialize = "type"))]
     pub content_type: String,
     pub value: String,
 }
@@ -79,6 +80,8 @@ impl EmailClient {
                 value: String::from(html_content),
             }],
         };
+
+        println!("body: {}", serde_json::to_string(&body).unwrap());
 
         self.http_client
             .post(&url)

@@ -3,7 +3,6 @@ use actix_web::{web, App, HttpServer};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Pool, Postgres};
 use std::net::TcpListener;
-use tokio::sync::Mutex;
 use tracing_actix_web::TracingLogger;
 
 use crate::config::{DatabaseSettings, Settings};

@@ -1,4 +1,4 @@
-use sqlx::{postgres::PgRow, PgPool, Row};
+use sqlx::{postgres::PgRow, Row};
 use std::collections::HashMap;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
