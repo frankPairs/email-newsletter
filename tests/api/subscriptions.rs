@@ -64,7 +64,7 @@ async fn subscribe_persists_the_new_subscriber() {
 }
 
 #[tokio::test]
-async fn subscribe_returns_400_when_body_is_not_valid() {
+async fn subscribe_returns_400_when_body_require_field_is_missing() {
     let test_app = TestApp::spawn_app().await;
 
     // This is a common practice and it is called table-driven tests. In this case, it simulates different kind of possible request bodies
@@ -80,6 +80,36 @@ async fn subscribe_returns_400_when_body_is_not_valid() {
             "missing name parameter",
         ),
         (HashMap::from([("name", "")]), "name cannot be empty"),
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        let response = test_app.post_subscription(invalid_body).await;
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The API did not fail with 400 status when payload was {}",
+            error_message
+        );
+    }
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_when_body_is_present_but_not_valid() {
+    let test_app = TestApp::spawn_app().await;
+
+    // This is a common practice and it is called table-driven tests. In this case, it simulates different kind of possible request bodies
+    // where API should return 400.
+    let test_cases: Vec<(HashMap<&str, &str>, &str)> = vec![
+        (HashMap::from([]), "mising body parameters"),
+        (
+            HashMap::from([("name", "{Frank}"), ("email", "test@test.com")]),
+            "invalid name parameter",
+        ),
+        (
+            HashMap::from([("name", "Frank"), ("email", "test.com")]),
+            "invalid email parameter",
+        ),
     ];
 
     for (invalid_body, error_message) in test_cases {

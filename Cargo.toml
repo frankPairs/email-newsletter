@@ -39,6 +39,7 @@ wiremock = { version = "0.5" }
 redis = { version = "0.22.3", features = ["tokio-comp"] }
 linkify = { version = "0.9" }
 rand = { version = "0.8", features = ["std_rng"] }
+thiserror = { version = "1.0" }
 
 [dependencies.sqlx]
 version = "0.6.2"

@@ -1,6 +1,7 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, ResponseError};
 use chrono::Utc;
 use rand::Rng;
+use reqwest::StatusCode;
 use sqlx::{postgres::PgRow, PgPool, Row};
 use uuid::Uuid;
 
@@ -31,48 +32,25 @@ pub async fn handle_create_subscription(
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
     redis_client: web::Data<redis::Client>,
-) -> impl Responder {
-    let new_subscriber: NewSubscriber = match body.try_into() {
-        Ok(subscriber) => subscriber,
-        Err(err) => {
-            tracing::error!("Validation error: {:?}", err);
-            return HttpResponse::BadRequest().finish();
-        }
-    };
-
-    let subscriber = match create_subscription(&new_subscriber, &db_pool).await {
-        Ok(subscriber) => subscriber,
-        Err(err) => {
-            tracing::error!("Failed to insert new subscriber: {:?}", err);
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
+) -> Result<HttpResponse, CreateSubscriptionError> {
+    let new_subscriber: NewSubscriber = body
+        .try_into()
+        .map_err(CreateSubscriptionError::ValidationError)?;
+    let subscriber = create_subscription(&new_subscriber, &db_pool)
+        .await
+        .map_err(CreateSubscriptionError::InsertSubscriptionError)?;
     let subscription_token = generate_subscription_token();
 
-    if let Err(err) =
-        store_subscription_token(&redis_client, &subscription_token, &subscriber.id).await
-    {
-        tracing::error!("Failed to store subscription token: {:?}", err);
-        return HttpResponse::InternalServerError().finish();
-    }
-
-    if let Err(err) = send_confirmation_email(
+    store_subscription_token(&redis_client, &subscription_token, &subscriber.id).await?;
+    send_confirmation_email(
         &email_client,
         &new_subscriber,
         base_url.0.as_str(),
         subscription_token.as_str(),
     )
-    .await
-    {
-        tracing::error!(
-            "Failed to send an email to {}: {:?}",
-            new_subscriber.email.as_ref(),
-            err
-        );
-        // return HttpResponse::InternalServerError().finish();
-    }
+    .await?;
 
-    HttpResponse::Created().finish()
+    Ok(HttpResponse::Created().finish())
 }
 
 #[tracing::instrument(
@@ -166,8 +144,11 @@ async fn store_subscription_token(
     redis_client: &redis::Client,
     subscription_token: &str,
     subscriber_id: &Uuid,
-) -> Result<(), redis::RedisError> {
-    let mut redis_conn = redis_client.get_tokio_connection().await?;
+) -> Result<(), StoreTokenError> {
+    let mut redis_conn = redis_client.get_tokio_connection().await.map_err(|err| {
+        tracing::error!("Failed to connect to Redis: {:?}", err);
+        StoreTokenError(err)
+    })?;
 
     redis::cmd("SET")
         .arg(format!(
@@ -177,6 +158,10 @@ async fn store_subscription_token(
         .arg(subscriber_id.to_string())
         .query_async(&mut redis_conn)
         .await
+        .map_err(|err| {
+            tracing::error!("Failed to store subscription token: {:?}", err);
+            StoreTokenError(err)
+        })
 }
 
 fn generate_subscription_token() -> String {
@@ -186,4 +171,54 @@ fn generate_subscription_token() -> String {
         .map(char::from)
         .take(30)
         .collect()
+}
+
+#[derive(thiserror::Error)]
+pub enum CreateSubscriptionError {
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+    #[error("Failed to store the confirmation token for a new subscriber.")]
+    StoreTokenError(#[from] StoreTokenError),
+    #[error("Failed to send a confirmation email to a new subscriber.")]
+    SendEmailError(#[from] reqwest::Error),
+    #[error("Failed to insert a new subscriber into the database.")]
+    InsertSubscriptionError(#[source] sqlx::Error),
+}
+
+impl std::fmt::Debug for CreateSubscriptionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Caused by:\n\t({})", self)
+    }
+}
+
+impl ResponseError for CreateSubscriptionError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            Self::ValidationError(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+pub struct StoreTokenError(redis::RedisError);
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error was encountered while storing a subscription token."
+        )
+    }
+}
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\nCaused by:\n\t({})", self, self.0)
+    }
+}
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
 }
