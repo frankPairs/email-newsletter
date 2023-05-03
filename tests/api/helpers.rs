@@ -73,8 +73,8 @@ impl TestApp {
         let client = reqwest::Client::new();
         let url = format!("{}/newsletters", self.address);
 
-        let response = reqwest::Client::new()
-            .post(url)
+        let response = client
+            .post(&url)
             .json(&body)
             .send()
             .await
