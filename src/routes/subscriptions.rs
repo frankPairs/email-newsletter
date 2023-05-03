@@ -61,7 +61,7 @@ async fn create_subscription(
     new_subscriber: &NewSubscriber,
     db_pool: &web::Data<PgPool>,
 ) -> Result<Subscriber, sqlx::Error> {
-    let subscriber = sqlx::query(
+    sqlx::query(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at, status) 
         VALUES ($1, $2, $3, $4, 'pending_confirmation')
@@ -81,18 +81,6 @@ async fn create_subscription(
     })
     .fetch_one(db_pool.get_ref())
     .await
-    .map_err(|err| {
-        tracing::error!("Failed to execute query: {:?}", err);
-        err
-    });
-
-    match subscriber {
-        Ok(subscriber) => Ok(subscriber),
-        Err(err) => {
-            tracing::error!("Failed to execute query: {:?}", err);
-            Err(err)
-        }
-    }
 }
 
 #[tracing::instrument(
@@ -158,10 +146,7 @@ async fn store_subscription_token(
         .arg(subscriber_id.to_string())
         .query_async(&mut redis_conn)
         .await
-        .map_err(|err| {
-            tracing::error!("Failed to store subscription token: {:?}", err);
-            StoreTokenError(err)
-        })
+        .map_err(StoreTokenError)
 }
 
 fn generate_subscription_token() -> String {

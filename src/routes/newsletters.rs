@@ -24,7 +24,7 @@ pub struct NewsletterContent {
         content_html = %body.content.html
     )
 )]
-pub async fn publish_newsletter(
+pub async fn handle_publish_newsletter(
     body: web::Json<NewNewsletter>,
     db_pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
@@ -41,6 +41,7 @@ pub async fn publish_newsletter(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[tracing::instrument(name = "Get subscribers from database.", skip(db_pool))]
 pub async fn get_subscribers(
     db_pool: &web::Data<PgPool>,
 ) -> Result<Vec<SubscriberEmail>, PublishNewsletterError> {

@@ -71,10 +71,7 @@ pub async fn get_subscriber_id_from_token(
 
     match Uuid::parse_str(&subscriber_id) {
         Ok(subscriber_id) => Ok(Some(subscriber_id)),
-        Err(err) => {
-          tracing::error!("Failed to get a subscriber id from a token: {:?}", err);
-          Ok(None)
-        },
+        Err(_) => Ok(None),
     }
 }
 
