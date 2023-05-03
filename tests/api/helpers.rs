@@ -64,7 +64,21 @@ impl TestApp {
             .json(&body)
             .send()
             .await
-            .expect("Failed to execute request.");
+            .expect("Failed to execute post subscription request.");
+
+        response
+    }
+
+    pub async fn post_newsletter(&self, body: serde_json::Value) -> Response {
+        let client = reqwest::Client::new();
+        let url = format!("{}/newsletters", self.address);
+
+        let response = reqwest::Client::new()
+            .post(url)
+            .json(&body)
+            .send()
+            .await
+            .expect("Failed to execute post newsletter request.");
 
         response
     }

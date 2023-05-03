@@ -81,7 +81,45 @@ impl EmailClient {
             }],
         };
 
-        println!("body: {}", serde_json::to_string(&body).unwrap());
+        self.http_client
+            .post(&url)
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.api_key.expose_secret()),
+            )
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()?; // return an error when server response status code is 4xx or 5xx
+
+        Ok(())
+    }
+
+    pub async fn broadcast_email(
+        &self,
+        recipents: Vec<SubscriberEmail>,
+        subject: &str,
+        html_content: &str,
+    ) -> Result<(), reqwest::Error> {
+        let url = format!("{}/mail/send", self.base_url);
+        let body = SendEmailBody {
+            from: SengridEmail {
+                email: String::from(self.sender.as_ref()),
+            },
+            personalizations: vec![SengridPersonalization {
+                to: recipents
+                    .into_iter()
+                    .map(|recipent| SengridEmail {
+                        email: String::from(recipent.as_ref()),
+                    })
+                    .collect(),
+            }],
+            subject: String::from(subject),
+            content: vec![SengridContent {
+                content_type: String::from("text/html"),
+                value: String::from(html_content),
+            }],
+        };
 
         self.http_client
             .post(&url)
